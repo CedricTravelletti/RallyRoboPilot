@@ -52,7 +52,8 @@ class Track(Entity):
         print("Done creating track entity")
 
         self.finish_line = Entity(model = "cube", position = finish_line_position,
-                                  rotation = finish_line_rotation, scale = finish_line_scale, visible = False)
+                                  rotation = finish_line_rotation, scale = finish_line_scale,
+                                  visible = False)
         self.track = [ self.finish_line ]
 
         self.details = []

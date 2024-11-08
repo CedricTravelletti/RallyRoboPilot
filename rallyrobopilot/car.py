@@ -88,10 +88,12 @@ class Car(Entity):
         # Stopwatch/Timer
         self.timer_running = False
         self.count = 0.0
+        self.last_lap_abs_time = self.count
+        self.last_lap_duration = 0
 
         self.last_count = self.count
         self.reset_count = 0.0
-        self.timer = Text(text = "", origin = (0, 0), size = 0.05, scale = (1, 1), position = (-0.7, 0.43))
+        self.timer = Text(text = "timer", origin = (0, 0), size = 0.05, scale = (1, 1), position = (-0.7, 0.43))
 
         self.laps_text = Text(text = "", origin = (0, 0), size = 0.05, scale = (1.1, 1.1), position = (0, 0.43))
         self.reset_count_timer = Text(text = str(round(self.reset_count, 1)), origin = (0, 0), size = 0.05, scale = (1, 1), position = (-0.7, 0.43))
@@ -100,6 +102,10 @@ class Car(Entity):
 
         self.laps_text.disable()
         self.reset_count_timer.disable()
+
+        # Perso: deactivate timer.
+        # self.reset_timer()
+        # self.timer.enable()
 
         self.gamemode = "race"
         self.start_time = False
@@ -281,6 +287,20 @@ class Car(Entity):
 
 
     def update(self):
+        # Update timer.
+        self.count += time.dt
+        self.timer.text = str(round(self.count, 1))
+
+        # Check if finish line.
+        if self.simple_intersects(self.track.finish_line):
+            # Check that the lap has been long enough, otherwise 
+            # we tend to count several intersections at once.
+            last_lap_duration = self.count - self.last_lap_abs_time
+            if last_lap_duration > 0.5:
+                self.last_lap_duration = last_lap_duration 
+                self.last_lap_abs_time = self.count # Begin new lap.
+                print("Lap completed in " + str(self.last_lap_duration))
+        
         # Exit if esc pressed.
         if held_keys["escape"]:
             quit()

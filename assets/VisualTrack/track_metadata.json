@@ -9,9 +9,9 @@
     "car_default_reset_position": [ 0, 0, 0 ],
     "car_default_reset_orientation": [ 0, -90, 0 ],
 
-    "finish_line_position": [ 31, -48, 72 ],
+    "finish_line_position": [ 0, 0, 0 ],
     "finish_line_rotation": [ 0, 0, 0 ],
-    "finish_line_scale": [ 3, 8, 30 ],
+    "finish_line_scale": [ 0.001, 5, 30 ],
 
     "details":
     [

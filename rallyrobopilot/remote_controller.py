@@ -112,6 +112,8 @@ class RemoteController(Entity):
                 'down': current_controls[1],
                 'left': current_controls[2], 
                 'right': current_controls[3],
+                'absolute_time': self.car.count,
+                'last_lap_duration': self.car.last_lap_duration,
                 'car_position x': car_position[0],
                 'car_position y': car_position[1],
                 'car_position z': car_position[2],
