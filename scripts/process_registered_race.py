@@ -5,37 +5,31 @@ This scipt automatically splits the data in laps.
 """
 import os 
 import numpy as np 
+import pandas as pd
 
 
-def load_data(base_folder):
-    commands = np.load(os.path.join(base_folder, "commands.npy"), allow_pickle=True)
-    timestamps = np.load(os.path.join(base_folder, "timestamps.npy"), allow_pickle=True)
-    lap_times = np.load(os.path.join(base_folder, "lap_times.npy"), allow_pickle=True)
-    return commands, timestamps, lap_times
+def load_data(file_path):
+    df = pd.read_pickle(file_path)
+    return df
 
-def split_laps(commands, timestamps, lap_times):
-    current_lap_time = 0.
-    i = 0
-    all_laps_commands = []
-    all_laps_timestamps = []
-    current_lap_commands = []
-    current_lap_timestamps = []
-    for i in range(len(commands)):
-        # If still same lap
-        if np.abs(lap_times[i] - current_lap_time) < 1e-4:
-            current_lap_commands.append(commands[i])
-            current_lap_timestamps.append(timestamps[i])
-        # Go to next lap.
-        else:
-            # Store processed lap.
-            all_laps_commands.append(current_lap_commands)
-            all_laps_timestamps.append(current_lap_timestamps)
-            # Begin next lap.
-            current_lap_time = lap_times[i]
-            current_lap_commands = [commands[i]]
-            current_lap_timestamps = [timestamps[i]]
-    # By design, the last lap is not returned.
-    # This is because usually we stop recording in the middle of a lap.
-    lap_durations = [t[-1] - t[0] for t in all_laps_timestamps]
-    # Do not return first lap (warm-up before first crossing the starting line).
-    return all_laps_commands[1:], all_laps_timestamps[1:], lap_durations[1:]
+def split_laps(df):
+    df['lap_time_diff'] = df['last_lap_duration'].diff().abs()
+
+    threshold = 1e-4
+    split_indices = df.index[df['lap_time_diff'] > threshold].tolist()
+
+    split_dataframes = []
+
+    start_idx = 0
+    for idx in split_indices:
+        split_dataframes.append(df.iloc[start_idx:idx].drop(columns=['lap_time_diff']))
+        start_idx = idx
+
+    split_dataframes.append(df.iloc[start_idx:].drop(columns=['lap_time_diff']))
+
+    # Compute total time of each lap.
+    for split_df in split_dataframes:
+        total_time = split_df['absolute_time'].iloc[-1] - split_df['absolute_time'].iloc[0]
+        split_df['current_lap_total_time'] = total_time
+# Throw away first and last lap (since those are not full laps).
+return split_dataframes[1:-1]

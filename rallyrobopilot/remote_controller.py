@@ -4,7 +4,6 @@ import socket
 import select
 import numpy as np
 import pandas as pd
-import json
 
 from flask import Flask, request, jsonify
 
@@ -86,23 +85,7 @@ def save_to_pandas(data, output_file):
     df = pd.DataFrame(data=data, columns=SENSE_VARS) 
     df.to_pickle(output_file)
 
-""" 
-    Helper for dumping race data to JSON.
-"""
-def convert_to_serializable(obj):
-    if isinstance(obj, np.ndarray):
-        return obj.tolist()  # Convert NumPy array to list
-    if isinstance(obj, (np.float32, np.float64)):
-        return float(obj)  # Convert NumPy float to Python float
-    if isinstance(obj, (np.int32, np.int64)):
-        return int(obj)  # Convert NumPy int to Python int
-    raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
-
-def dump_to_json(data, output_file):
-    with open(output_file, "w") as json_file:
-        json.dump(data, json_file, default=convert_to_serializable, indent=2)
-
-        
+    
 class RemoteController(Entity):
     def __init__(self, car = None, connection_port = 7654, flask_app=None):
         super().__init__()
