@@ -6,7 +6,7 @@
     "origin_rotation": [  0, 0, 0 ],
     "origin_scale": [ 1, 1, 1 ],
 
-    "car_default_reset_position": [ 0, 0, 0 ],
+    "car_default_reset_position": [ 3, 0, 0 ],
     "car_default_reset_orientation": [ 0, -90, 0 ],
 
     "finish_line_position": [ 0, 0, 0 ],
