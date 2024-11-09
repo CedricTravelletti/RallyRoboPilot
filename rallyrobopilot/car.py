@@ -3,9 +3,12 @@ import timeit
 import setuptools
 from ursina import *
 from ursina import curve
+import ursina.application
 from .particles import Particles, TrailRenderer
 from math import pow, atan2
 import json
+import os
+import signal
 
 sign = lambda x: -1 if x < 0 else (1 if x > 0 else 0)
 Text.default_resolution = 1080 * Text.size
@@ -302,8 +305,9 @@ class Car(Entity):
                 print("Lap completed in " + str(self.last_lap_duration))
         
         # Exit if esc pressed.
-        if held_keys["escape"]:
-            quit()
+        if held_keys["escape"] or held_keys["q"]:
+            ursina.application.quit()
+            os.kill(os.getpid(), signal.SIGINT)
 
         self.check_respawn()
 

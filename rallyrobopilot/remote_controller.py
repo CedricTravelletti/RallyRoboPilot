@@ -3,6 +3,8 @@ from ursina import *
 import socket
 import select
 import numpy as np
+import pandas as pd
+import json
 
 from flask import Flask, request, jsonify
 
@@ -14,10 +16,93 @@ from .remote_commands import RemoteCommandParser
 REMOTE_CONTROLLER_VERBOSE = False
 PERIOD_REMOTE_SENSING = 0.1
 
+# Which variables we keep
+SENSE_VARS = ['up', 'down', 'left', 'right',
+               'absolute_time','last_lap_duration',
+               'car_position x','car_position y','car_position z',
+               'car_speed','car_angle']
+
 def printv(str):
     if REMOTE_CONTROLLER_VERBOSE:
         print(str)
 
+def get_last_image():
+    #   Collect last rendered image
+    tex = base.win.getDisplayRegion(0).getScreenshot()
+    arr = tex.getRamImageAs("RGB")
+    data = np.frombuffer(arr, np.uint8)
+    image = data.reshape(tex.getYSize(), tex.getXSize(), 3)
+    image = image[::-1, :, :]#   Image arrives with inverted Y axis
+    return image
+
+def get_sensing_data(car):
+    current_controls = (held_keys['w'] or held_keys["up arrow"],
+                        held_keys['s'] or held_keys["down arrow"],
+                        held_keys['a'] or held_keys["left arrow"],
+                        held_keys['d'] or held_keys["right arrow"])
+    car_position = car.world_position
+    car_speed = car.speed
+    car_angle = car.rotation_y
+    raycast_distances = car.multiray_sensor.collect_sensor_values()
+    return {'up': current_controls[0],
+            'down': current_controls[1],
+            'left': current_controls[2], 
+            'right': current_controls[3],
+            'absolute_time': car.count,
+            'last_lap_duration': car.last_lap_duration,
+            'car_position x': car_position[0],
+            'car_position y': car_position[1],
+            'car_position z': car_position[2],
+            'car_speed': car_speed,
+            'car_angle': car_angle,
+            'raycast_distances 0': raycast_distances[0],
+            'raycast_distances 1': raycast_distances[1],
+            'raycast_distances 2': raycast_distances[2],
+            'raycast_distances 3': raycast_distances[3],
+            'raycast_distances 4': raycast_distances[4],
+            'raycast_distances 5': raycast_distances[5],
+            'raycast_distances 6': raycast_distances[6],
+            'raycast_distances 7': raycast_distances[7],
+            'raycast_distances 8': raycast_distances[8],
+            'raycast_distances 9': raycast_distances[9],
+            'raycast_distances 10': raycast_distances[10],
+            'raycast_distances 11': raycast_distances[11],
+            'raycast_distances 12': raycast_distances[12],
+            'raycast_distances 13': raycast_distances[13],
+            'raycast_distances 14': raycast_distances[14]
+            }
+    
+""" 
+    Format the dict returned by process_sensing so that 
+    we only save what we need, in lightweight format.
+        
+"""
+def format_data(data):
+    formatted_data = [data[key] for key in SENSE_VARS]
+    return formatted_data
+
+def save_to_pandas(data, output_file):
+    print("Saving to pandas")
+    df = pd.DataFrame(data=data, columns=SENSE_VARS) 
+    df.to_pickle(output_file)
+
+""" 
+    Helper for dumping race data to JSON.
+"""
+def convert_to_serializable(obj):
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()  # Convert NumPy array to list
+    if isinstance(obj, (np.float32, np.float64)):
+        return float(obj)  # Convert NumPy float to Python float
+    if isinstance(obj, (np.int32, np.int64)):
+        return int(obj)  # Convert NumPy int to Python int
+    raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
+
+def dump_to_json(data, output_file):
+    with open(output_file, "w") as json_file:
+        json.dump(data, json_file, default=convert_to_serializable, indent=2)
+
+        
 class RemoteController(Entity):
     def __init__(self, car = None, connection_port = 7654, flask_app=None):
         super().__init__()
@@ -57,7 +142,7 @@ class RemoteController(Entity):
     
         @flask_app.route('/sensing')
         def get_sensing_route():
-            return jsonify(self.get_sensing_data()), 200
+            return jsonify(get_sensing_data(self.car)), 200
 
     def update(self):
         self.update_network()
@@ -80,13 +165,7 @@ class RemoteController(Entity):
             snapshot.raycast_distances = self.car.multiray_sensor.collect_sensor_values()
 
             #   Collect last rendered image
-            tex = base.win.getDisplayRegion(0).getScreenshot()
-            arr = tex.getRamImageAs("RGB")
-            data = np.frombuffer(arr, np.uint8)
-            image = data.reshape(tex.getYSize(), tex.getXSize(), 3)
-            image = image[::-1, :, :]#   Image arrives with inverted Y axis
-
-            snapshot.image = image
+            snapshot.image = get_last_image()
 
             msg_mngr = SensingSnapshotManager()
             data = msg_mngr.pack(snapshot)
@@ -99,42 +178,6 @@ class RemoteController(Entity):
 
             self.last_sensing = time.time()
 
-    def get_sensing_data(self):
-        current_controls = (held_keys['w'] or held_keys["up arrow"],
-                            held_keys['s'] or held_keys["down arrow"],
-                            held_keys['a'] or held_keys["left arrow"],
-                            held_keys['d'] or held_keys["right arrow"])
-        car_position = self.car.world_position
-        car_speed = self.car.speed
-        car_angle = self.car.rotation_y
-        raycast_distances = self.car.multiray_sensor.collect_sensor_values()
-        return {'up': current_controls[0],
-                'down': current_controls[1],
-                'left': current_controls[2], 
-                'right': current_controls[3],
-                'absolute_time': self.car.count,
-                'last_lap_duration': self.car.last_lap_duration,
-                'car_position x': car_position[0],
-                'car_position y': car_position[1],
-                'car_position z': car_position[2],
-                'car_speed': car_speed,
-                'car_angle': car_angle,
-                'raycast_distances 0': raycast_distances[0],
-                'raycast_distances 1': raycast_distances[1],
-                'raycast_distances 2': raycast_distances[2],
-                'raycast_distances 3': raycast_distances[3],
-                'raycast_distances 4': raycast_distances[4],
-                'raycast_distances 5': raycast_distances[5],
-                'raycast_distances 6': raycast_distances[6],
-                'raycast_distances 7': raycast_distances[7],
-                'raycast_distances 8': raycast_distances[8],
-                'raycast_distances 9': raycast_distances[9],
-                'raycast_distances 10': raycast_distances[10],
-                'raycast_distances 11': raycast_distances[11],
-                'raycast_distances 12': raycast_distances[12],
-                'raycast_distances 13': raycast_distances[13],
-                'raycast_distances 14': raycast_distances[14]
-                }
 
     def process_remote_commands(self):
         if self.car is None:
@@ -223,3 +266,59 @@ class RemoteController(Entity):
         # self.listen_socket.setblocking(False)
         self.listen_socket.settimeout(0.01)
         self.listen_socket.listen()
+
+""" 
+    Class to extract race data from the game and save locally. 
+    This Writer extracts data at a fixed interval using the main game loop 
+    and saves it to disk locally. 
+
+    The main purpose of this Writer is to keep sync with the game, by deferring 
+    the sensing to the main loop (instead of pinging via HTTP according to an external 
+    timer. 
+
+    It is meant to be used in conjunction with LocalInjecter
+
+"""
+class LocalWriter(Entity):
+    def __init__(self, car = None, output_file="./race_data.pkl"):
+        super().__init__()
+
+        self.car = car
+        self.output_file = output_file
+        self.race_data = []
+
+        #   Period for recording --> 0.1 secods = 10 times a second
+        self.sensing_period = PERIOD_REMOTE_SENSING
+        self.last_sensing = -1
+
+    def update(self):
+        self.process_sensing(self.race_data)
+
+        if held_keys["g"]:
+            save_to_pandas(self.race_data, self.output_file)
+
+    def process_sensing(self, data_gatherer):
+        if self.car is None:
+            return
+
+        if time.time() - self.last_sensing >= self.sensing_period:
+            data = get_sensing_data(self.car)
+            self.last_sensing = time.time()
+            data_form = format_data(data)
+            data_gatherer.append(data_form)
+
+""" 
+    Class for injecting command into the game, read from a local file 
+    (all-at-once). 
+    This injecter reads a sequence of commands from a file and replays them in 
+    the game.
+
+    The main purpose of this Injecter is to keep sync with the game, by directly 
+    injecting command in the game's main loop.
+
+    It is meant to be used in conjunction with LocalWriter
+
+"""
+class LocalInjecter(Entity):
+    def __init__(self, car = None, output_file="./race_data.json"):
+        super().__init__()
