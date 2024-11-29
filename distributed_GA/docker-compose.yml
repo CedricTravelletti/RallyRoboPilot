@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  simulator:
+    build: .
+    environment:
+      - FLASK_ENV=development
+    deploy:
+      replicas: 3  # Specify the number of containers
+    networks:
+      - sim-network
+    ports:
+      - "5000-5002:5000"  # Map a range of ports for testing
+
+networks:
+  sim-network:
+    driver: bridge
+

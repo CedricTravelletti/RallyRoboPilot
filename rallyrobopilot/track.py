@@ -23,9 +23,16 @@ def load_track_metadata(track_name):
 
     return metadata
 
+def load_finish_lines(finish_lines):
+    finish_lines_loaded = []
+    for f in finish_lines:
+        finish_lines_loaded.append(Entity(model = "cube", position = f["finish_line_position"],
+                                  rotation = f["finish_line_rotation"], scale = f["finish_line_scale"],
+                                  visible = True, collider="box"))
+    return finish_lines_loaded
 
 class Track(Entity):
-    def __init__(self, track_name):
+    def __init__(self, track_name, finish_lines=None):
 
         self.track_name = track_name
         self.data = load_track_metadata(track_name)
@@ -41,9 +48,9 @@ class Track(Entity):
         self.car_default_reset_position = tuple(self.data["car_default_reset_position"])
         self.car_default_reset_orientation = tuple(self.data["car_default_reset_orientation"])
 
-        finish_line_position = tuple(self.data["finish_line_position"])
-        finish_line_rotation = tuple(self.data["finish_line_rotation"])
-        finish_line_scale = tuple(self.data["finish_line_scale"])
+        # finish_line_position = tuple(self.data["finish_line_position"])
+        # finish_line_rotation = tuple(self.data["finish_line_rotation"])
+        # finish_line_scale = tuple(self.data["finish_line_scale"])
        
         print("Creating track entity")
         super().__init__(model = track_model_path, texture = load_texture(track_texture_path),
@@ -51,10 +58,10 @@ class Track(Entity):
                          scale = self.origin_scale, collider = "mesh")
         print("Done creating track entity")
 
-        self.finish_line = Entity(model = "cube", position = finish_line_position,
-                                  rotation = finish_line_rotation, scale = finish_line_scale,
-                                  visible = True)
-        self.track = [ self.finish_line ]
+        if finish_lines is not None:
+            self.finish_lines = load_finish_lines(finish_lines)
+        else:
+            self.finish_lines = [ ] 
 
         self.details = []
         for detail in self.data["details"]:
@@ -76,7 +83,7 @@ class Track(Entity):
         self.deactivate()
 
     def deactivate(self):
-        for i in self.track:
+        for i in self.finish_lines:
             i.disable()
         for i in self.details:
             i.disable()
@@ -86,7 +93,7 @@ class Track(Entity):
 
     def activate(self, activate_details = True):
         self.enable()
-        for i in self.track:
+        for i in self.finish_lines:
             i.enable()
         for i in self.obstacles:
             i.enable()

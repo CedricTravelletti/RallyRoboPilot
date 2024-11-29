@@ -1,13 +1,21 @@
 from rallyrobopilot import Car, Track, SunLight, MultiRaySensor
+from json import loads
 from ursina import *
 
 
-def prepare_game_app():
+def prepare_game_app(time_scale=1.0):
     from ursina import window, Ursina
+
+    application.time_scale = time_scale
+
+    # Load finish lines.
+    with open('finish_lines_blue.json', 'r') as file:
+        finish_lines = loads(file.read())['finish_lines']
+        print(finish_lines)
     
     # Create Window
     window.vsync = True # Set to false to uncap FPS limit of 60
-    app = Ursina(size=(1280,1024))
+    app = Ursina(size=(300,300))
     print("Asset folder")
     print(application.asset_folder)
 
@@ -20,7 +28,7 @@ def prepare_game_app():
     window.borderless = False
     window.show_ursina_splash = False
     window.cog_button.disable()
-    window.fps_counter.enable()
+    # window.fps_counter.enable()
     window.exit_button.disable()
     
     #   Global models & textures
@@ -31,7 +39,7 @@ def prepare_game_app():
     
     # load assets
     track_name = "VisualTrack"
-    track = Track(track_name)
+    track = Track(track_name, finish_lines)
     print("loading assets after track creation")
     track.load_assets(global_models, global_texs)
     
@@ -42,10 +50,10 @@ def prepare_game_app():
     car.set_track(track)
     
     
-    car.multiray_sensor = MultiRaySensor(car, 15, 90)
-    car.multiray_sensor.enable()
+    # car.multiray_sensor = MultiRaySensor(car, 15, 90)
+    # car.multiray_sensor.enable()
     # Hide rays. 
-    car.multiray_sensor.set_enabled_rays(False)
+    # car.multiray_sensor.set_enabled_rays(False)
     
     # Lighting + shadows
     sun = SunLight(direction = (-0.7, -0.9, 0.5), resolution = 3072, car = car)

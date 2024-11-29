@@ -1,11 +1,11 @@
-
 from ursina import *
 import socket
-import select
 import numpy as np
-import pandas as pd
+from  pandas import DataFrame
+from json import dump
 
 from flask import Flask, request, jsonify
+from pandas import to_timedelta
 
 
 from .sensing_message import SensingSnapshot, SensingSnapshotManager
@@ -13,13 +13,24 @@ from .remote_commands import RemoteCommandParser
 
 
 REMOTE_CONTROLLER_VERBOSE = False
-PERIOD_REMOTE_SENSING = 0.1
+PERIOD_REMOTE_SENSING = 0.02
 
 # Which variables we keep
 SENSE_VARS = ['up', 'down', 'left', 'right',
                'absolute_time','last_lap_duration',
                'car_position x','car_position y','car_position z',
                'car_speed','car_angle']
+
+def resample_commands(df, frequency):
+    df['absolute_time'] = to_timedelta(df['absolute_time'], unit='s')
+    df.set_index('absolute_time', inplace=True)
+
+    # Resample every 0.1 seconds and keep the first row in each interval
+    resampled_df = df.resample(frequency).first().dropna().reset_index()
+
+    # Convert the index back to elapsed seconds
+    resampled_df['absolute_time'] = resampled_df['absolute_time'].dt.total_seconds()
+    return resampled_df
 
 def printv(str):
     if REMOTE_CONTROLLER_VERBOSE:
@@ -54,21 +65,6 @@ def get_sensing_data(car):
             'car_position z': car_position[2],
             'car_speed': car_speed,
             'car_angle': car_angle,
-            'raycast_distances 0': raycast_distances[0],
-            'raycast_distances 1': raycast_distances[1],
-            'raycast_distances 2': raycast_distances[2],
-            'raycast_distances 3': raycast_distances[3],
-            'raycast_distances 4': raycast_distances[4],
-            'raycast_distances 5': raycast_distances[5],
-            'raycast_distances 6': raycast_distances[6],
-            'raycast_distances 7': raycast_distances[7],
-            'raycast_distances 8': raycast_distances[8],
-            'raycast_distances 9': raycast_distances[9],
-            'raycast_distances 10': raycast_distances[10],
-            'raycast_distances 11': raycast_distances[11],
-            'raycast_distances 12': raycast_distances[12],
-            'raycast_distances 13': raycast_distances[13],
-            'raycast_distances 14': raycast_distances[14]
             }
     
 """ 
@@ -82,7 +78,7 @@ def format_data(data):
 
 def save_to_pandas(data, output_file):
     print("Saving to pandas")
-    df = pd.DataFrame(data=data, columns=SENSE_VARS) 
+    df = DataFrame(data=data, columns=SENSE_VARS) 
     df.to_pickle(output_file)
 
     
@@ -275,16 +271,39 @@ class LocalWriter(Entity):
         self.last_sensing = -1
 
     def update(self):
-        self.process_sensing(self.race_data)
+        # self.process_sensing()
+        dt = time.time() - self.last_sensing 
+        if dt >= self.sensing_period:
+            current_controls = (held_keys['w'] or held_keys["up arrow"],
+                            held_keys['s'] or held_keys["down arrow"],
+                            held_keys['a'] or held_keys["left arrow"],
+                            held_keys['d'] or held_keys["right arrow"])
+            car_position = self.car.world_position
+            car_speed = self.car.speed
+            car_angle = self.car.rotation_y
+            data = {'up': current_controls[0],
+                'down': current_controls[1],
+                'left': current_controls[2], 
+                'right': current_controls[3],
+                'absolute_time': self.car.count,
+                'last_lap_duration': self.car.last_lap_duration,
+                'car_position x': car_position[0],
+                'car_position y': car_position[1],
+                'car_position z': car_position[2],
+                'car_speed': car_speed,
+                'car_angle': car_angle,
+                }
+            self.last_sensing = time.time()
+            data_form = format_data(data)
+            self.race_data.append(data_form)
 
         if held_keys["g"]:
             save_to_pandas(self.race_data, self.output_file)
 
     def process_sensing(self, data_gatherer):
-        if self.car is None:
-            return
-
-        if time.time() - self.last_sensing >= self.sensing_period:
+        dt = time.time() - self.last_sensing 
+        if dt >= self.sensing_period:
+            print(dt)
             data = get_sensing_data(self.car)
             self.last_sensing = time.time()
             data_form = format_data(data)
@@ -301,7 +320,119 @@ class LocalWriter(Entity):
 
     It is meant to be used in conjunction with LocalWriter
 
+    Parameters
+    ----------
+    car: the Car entity from the running game
+    commands_df: a DataFrame containing the commands sequence and metadata. 
+                 Should be of the same format as the ones produced by the LocalWriter.
+
 """
 class LocalInjecter(Entity):
-    def __init__(self, car = None, output_file="./race_data.json"):
+    def __init__(self, car, commands_df, frequency=None):
         super().__init__()
+        self.car = car
+
+        # Resample and remove endpoints.
+        if frequency is not None:
+            commands_df = resample_commands(commands_df[1:], frequency)
+        self.commands_df = commands_df
+        self.sensing_period = PERIOD_REMOTE_SENSING
+        self.last_sensing = -1
+        self.is_running = False
+        self.current_command_ind = 0
+        self.launch_count = 0
+        self.sync_threshold = 0.005
+
+    def update(self):
+        # Make sure we only run once.
+        if held_keys["r"] and self.launch_count == 0:
+            self.is_running = True
+            print("Set runnin to " + str(self.is_running))
+            self.init_car(self.car, self.commands_df)
+
+            # Send first command
+            current_command = self.commands_df.iloc[self.current_command_ind]
+            self.current_command_ind += 1
+            self.send_command(current_command)
+            self.offset = self.car.count - current_command['absolute_time']
+
+            self.launch_count += 1
+
+        if self.is_running:
+            current_command = self.commands_df.iloc[self.current_command_ind]
+            if np.abs(self.car.count - current_command['absolute_time'] - self.offset) < self.sync_threshold:
+                print("Sending")
+                # self.process_next_command()
+                self.send_command(current_command)
+                self.current_command_ind += 1
+                # time_offset = current_command['absolute_time'].item() - time.time()
+                self.last_sensing = self.car.count
+            # Otherwise re-send last command.
+            else:
+                self.send_command(current_command)
+
+    def process_next_command(self):
+        current_command = self.commands_df.iloc[self.current_command_ind]
+        self.send_command(current_command)
+        self.current_command_ind += 1
+
+        time_offset = current_command['absolute_time'].item() - self.car.count
+        print("offset " + time_offset)
+
+    def send_command(self, command):
+        held_keys['w'] = bool(command['up'])
+        held_keys['s'] = bool(command['down'])
+        held_keys['d'] = bool(command['right'])
+        held_keys['a'] = bool(command['left'])
+
+    """ 
+        Initialize car so that its parameters (position, speed, angle) 
+        are as in the first row of the command sequence. 
+
+    """
+    def init_car(self, car, commands_df):
+        car.world_position = Vec3(
+            commands_df.iloc[0]['car_position x'].item(),
+            commands_df.iloc[0]['car_position y'].item(),
+            commands_df.iloc[0]['car_position z'].item())
+        car.speed = commands_df.iloc[0]['car_speed'].item()
+        car.rotation_y = commands_df.iloc[0]['car_angle'].item()
+        self.time_offset = commands_df.iloc[0]['absolute_time'].item() - self.car.count
+        print("time offset" + str(self.time_offset))
+        
+        
+""" 
+    Class to define finish lines manuall while driving. 
+    Upon hitting I, this will define a finish line at the current car position 
+    with orientation perpendicular to the car. Finish lines are stored 
+    in a list and then written to JSON.
+
+"""
+class FinishLinesDefiner(Entity):
+    def __init__(self, car, output_file):
+        super().__init__()
+
+        self.car = car
+        self.output_file = output_file
+        self.finish_lines = []
+
+
+    def update(self):
+        if held_keys["i"]:
+            self.finish_lines.append(self.create_finish_line())
+        if held_keys["o"]:
+            with open(self.output_file, "w") as outfile: 
+                dump({"finish_lines": self.finish_lines}, outfile)
+
+    def create_finish_line(self):
+        X_SCALE = 50
+        Y_SCALE = 0.01
+        car_position = self.car.world_position
+        car_angle = self.car.rotation_y
+        finish_line = {'finish_line_position': [car_position[0], car_position[1], car_position[2]],
+                       'finish_line_rotation': [0, car_angle, 0],
+                       'finish_line_scale': [X_SCALE, 5, Y_SCALE]
+                       }
+        print(finish_line)
+        return finish_line
+                       

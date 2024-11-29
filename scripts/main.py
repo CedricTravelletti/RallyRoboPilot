@@ -1,15 +1,10 @@
-from rallyrobopilot import prepare_game_app, LocalWriter
-from flask import Flask, request, jsonify
-from threading import Thread
+from rallyrobopilot import prepare_game_app, LocalWriter, LocalInjecter
+from pandas import read_pickle
 
 
-# Setup Flask
-flask_app = Flask(__name__)
-flask_thread = Thread(target=flask_app.run, kwargs={'host': "0.0.0.0", 'port': 5000})
-        
+df = read_pickle("./race_data.pkl")
 
-app, car = prepare_game_app()
-print("Flask server running on port 5000")
-flask_thread.start()
-local_writer = LocalWriter(car = car)
+app, car = prepare_game_app(time_scale=0.5)
+# local_writer = LocalWriter(car = car)
+local_injecter = LocalInjecter(car, df, frequency='0.02s')
 app.run()

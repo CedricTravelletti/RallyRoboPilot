@@ -31,5 +31,5 @@ def split_laps(df):
     for split_df in split_dataframes:
         total_time = split_df['absolute_time'].iloc[-1] - split_df['absolute_time'].iloc[0]
         split_df['current_lap_total_time'] = total_time
-# Throw away first and last lap (since those are not full laps).
-return split_dataframes[1:-1]
+    # Throw away first and last lap (since those are not full laps).
+    return split_dataframes[1:-1]

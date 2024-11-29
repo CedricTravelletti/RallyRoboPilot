@@ -295,28 +295,22 @@ class Car(Entity):
         self.timer.text = str(round(self.count, 1))
 
         # Check if finish line.
-        if self.simple_intersects(self.track.finish_line):
-            # Check that the lap has been long enough, otherwise 
-            # we tend to count several intersections at once.
-            last_lap_duration = self.count - self.last_lap_abs_time
-            if last_lap_duration > 0.5:
-                self.last_lap_duration = last_lap_duration 
-                self.last_lap_abs_time = self.count # Begin new lap.
-                print("Lap completed in " + str(self.last_lap_duration))
-        
-        # Exit if esc pressed.
-        if held_keys["escape"] or held_keys["q"]:
-            ursina.application.quit()
-            os.kill(os.getpid(), signal.SIGINT)
-
-        self.check_respawn()
+        for f in self.track.finish_lines:
+            if self.intersects(f):
+                # Check that the lap has been long enough, otherwise 
+                # we tend to count several intersections at once.
+                last_lap_duration = self.count - self.last_lap_abs_time
+                if last_lap_duration > 0.25:
+                    self.last_lap_duration = last_lap_duration 
+                    self.last_lap_abs_time = self.count # Begin new lap.
+                    print("Lap completed in " + str(self.last_lap_duration))
 
         #   Process inputs & update speed
         if held_keys[self.controls[0]] or held_keys["up arrow"]:
             self.speed += self.acceleration * time.dt
             self.driving = True
 
-            self.display_particles()
+            # self.display_particles()
         else:
             self.driving = False
             if self.speed > 1:
@@ -371,15 +365,16 @@ class Car(Entity):
         #   Integrate speed into movement
         total_dist_to_move = self.speed * time.dt
 
-        #   Check collision via recast
-
-
         #   Return residual distance to travel and residual speed.
         def move_car(distance_to_travel, direction):
-            front_collision = boxcast(origin = self.world_position, direction = self.forward * direction, thickness = (0.1, 0.1), distance = self.scale_x + distance_to_travel, ignore = [self, ])
+            front_collision = boxcast(origin = self.world_position, direction = self.forward * direction, thickness = (0.1, 0.1), distance = self.scale_x + distance_to_travel, ignore = self.track.finish_lines + [self])
 
             #   Detect collision
-            if front_collision.distance < self.scale_x + distance_to_travel:
+            current_front_collision = front_collision.distance < self.scale_x + distance_to_travel
+            backward_collision = self.intersects(ignore = self.track.finish_lines + [self])
+            
+            if current_front_collision:
+                print("front collision")
                 free_dist = front_collision.distance - self.scale_x + distance_to_travel
 
                 #   cancel speed going directly into the obstacle
@@ -396,10 +391,16 @@ class Car(Entity):
 
                 return 0
 
+            elif backward_collision and self.speed < -0.1:
+                print("backward collision")
+                OBSTACLE_DISPLACEMENT_MARGIN = 1
+                self.speed = 0.
+                self.x += self.forward[0] * OBSTACLE_DISPLACEMENT_MARGIN
+                self.z += self.forward[2] * OBSTACLE_DISPLACEMENT_MARGIN
+                return 0
             else:
                 self.x += self.forward[0] * distance_to_travel
                 self.z += self.forward[2] * distance_to_travel
-
                 return 0
 
         for i in range(2):
