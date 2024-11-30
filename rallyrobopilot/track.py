@@ -23,16 +23,16 @@ def load_track_metadata(track_name):
 
     return metadata
 
-def load_finish_lines(finish_lines):
+def load_finish_lines(finish_lines, visible_finish_lines):
     finish_lines_loaded = []
     for f in finish_lines:
         finish_lines_loaded.append(Entity(model = "cube", position = f["finish_line_position"],
                                   rotation = f["finish_line_rotation"], scale = f["finish_line_scale"],
-                                  visible = True, collider="box"))
+                                  visible = visible_finish_lines, collider="box"))
     return finish_lines_loaded
 
 class Track(Entity):
-    def __init__(self, track_name, finish_lines=None):
+    def __init__(self, track_name, finish_lines=None, visible_finish_lines=False):
 
         self.track_name = track_name
         self.data = load_track_metadata(track_name)
@@ -59,7 +59,7 @@ class Track(Entity):
         print("Done creating track entity")
 
         if finish_lines is not None:
-            self.finish_lines = load_finish_lines(finish_lines)
+            self.finish_lines = load_finish_lines(finish_lines, visible_finish_lines)
         else:
             self.finish_lines = [ ] 
 

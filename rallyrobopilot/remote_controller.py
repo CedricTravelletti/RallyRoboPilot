@@ -259,16 +259,24 @@ class RemoteController(Entity):
 
 """
 class LocalWriter(Entity):
-    def __init__(self, car = None, output_file="./race_data.pkl"):
+    def __init__(self, car, output_folder):
         super().__init__()
 
         self.car = car
-        self.output_file = output_file
+        self.output_file = output_file=f"./race_data.pkl"
         self.race_data = []
 
         #   Period for recording --> 0.1 secods = 10 times a second
         self.sensing_period = PERIOD_REMOTE_SENSING
         self.last_sensing = -1
+
+        self.sensing_id = 0
+        self.output_folder = output_folder
+
+    def take_screenshot(self, video_name, sensing_id):
+        base.screenshot(
+                namePrefix=self.output_folder + f'{str(self.sensing_id).zfill(4)}.png',
+                defaultFilename=0)
 
     def update(self):
         # self.process_sensing()
@@ -281,7 +289,11 @@ class LocalWriter(Entity):
             car_position = self.car.world_position
             car_speed = self.car.speed
             car_angle = self.car.rotation_y
-            data = {'up': current_controls[0],
+
+            self.take_screenshot(self.experiment_id, self.sensing_id)
+            data = {
+                'sensing_id': self.sensing_id,
+                'up': current_controls[0],
                 'down': current_controls[1],
                 'left': current_controls[2], 
                 'right': current_controls[3],
@@ -296,9 +308,10 @@ class LocalWriter(Entity):
             self.last_sensing = time.time()
             data_form = format_data(data)
             self.race_data.append(data_form)
+            self.sensing_id += 1
 
         if held_keys["g"]:
-            save_to_pandas(self.race_data, self.output_file)
+            save_to_pandas(self.race_data, self.output_folder + self.output_file)
 
     def process_sensing(self, data_gatherer):
         dt = time.time() - self.last_sensing 

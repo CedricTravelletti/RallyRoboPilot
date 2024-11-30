@@ -2,6 +2,9 @@ from rallyrobopilot import Car, Track, SunLight, MultiRaySensor
 from json import loads
 from ursina import *
 
+RESOLUTION_X = 256
+RESOLUTION_Y = 256
+
 
 def prepare_game_app(time_scale=1.0):
     from ursina import window, Ursina
@@ -15,7 +18,7 @@ def prepare_game_app(time_scale=1.0):
     
     # Create Window
     window.vsync = True # Set to false to uncap FPS limit of 60
-    app = Ursina(size=(300,300))
+    app = Ursina(size=(RESOLUTION_X, RESOLUTION_Y))
     print("Asset folder")
     print(application.asset_folder)
 

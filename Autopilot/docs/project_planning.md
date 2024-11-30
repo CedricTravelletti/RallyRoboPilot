@@ -1,5 +1,10 @@
 # Distributed RallyRoboPilot Project Requirements
 
+## Where we are: 
+- (27.11.2024): I have to plug together the genetic algorithm 
+  - This needs solving the sync problem. => self defined finish lines.
+- (27.11.2024): Need to begin vision.
+
 ## Project Goal
 Develop an AI model that uses computer vision to play a racing game.
 
@@ -28,6 +33,9 @@ Develop an AI model that uses computer vision to play a racing game.
       - hide rays
       - **Design decision**: keeping sync between game and autopilot is too difficult => we 
       decide to only consider laps that start from the game base state in the training (start at the starting line).
+      - **Solutions**: Fixing the game-sync drift problem required two steps:
+        1. Sync the sending of commands with the absolute game time. 
+        2. Limit the game framerate (and physics updating) to 25 FPS so we are not missing informations between frames.
 
 - **Week 2**: Conduct preliminary model assessment and define data requirements. Validate data and model requirements.
   - Tasks: Use steps 1 and 2 for preliminary model assessment, define data requirements, and validate them.
@@ -60,6 +68,11 @@ Develop an AI model that uses computer vision to play a racing game.
 
 
 ## Details 
+
+### Distributed Genetic Algorithm
+Architecture involves writing a custom `map` function to distribute computations 
+over available pods. Scheduling happens through http. The `map` follows the interface of 
+`concurrent.futures`, enabling plug-and-play usage inside the DEAP genetic algorithm library.
 
 ### Redis
 - Good resources: [Redis with docker-compose](https://geshan.com.np/blog/2022/01/redis-docker/) and [concurrent Python connections to Redis](https://medium.com/@e.ahmadi/manage-concurrency-in-multiple-python-clients-in-redis-5f9a05836a92).
